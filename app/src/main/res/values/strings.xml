@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">AudioAnalyzer</string>
+    <string name="show_me_a_demo">show me a demo</string>
+    <string name="decibel_format">%1$.1f dB</string>
+</resources>
