@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <SeekBar
+            android:id="@+id/duration"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="20"
+            android:progress="3"
+            android:layout_marginTop="30dp"/>
+        <TextView
+            android:id="@+id/duration_value"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="3"
+            android:layout_marginTop="20dp"
+            android:layout_marginLeft="20dp"/>
+        <EditText
+            android:id="@+id/duration_edit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="duration"
+            android:inputType="number"
+            android:layout_marginBottom="20dp"/>
+
+        <SeekBar
+            android:id="@+id/sampleRate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="44100"
+            android:progress="8000"/>
+        <TextView
+            android:id="@+id/sampleRate_value"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="8000"
+            android:layout_marginTop="20dp"
+            android:layout_marginLeft="20dp"/>
+        <EditText
+            android:id="@+id/sampleRate_edit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="sampleRate"
+            android:inputType="number"
+            android:layout_marginBottom="20dp"/>
+
+        <SeekBar
+            android:id="@+id/frequency"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="18000"
+            android:progress="15000"/>
+        <TextView
+            android:id="@+id/freq_value"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="200"
+            android:layout_marginTop="20dp"
+            android:layout_marginLeft="20dp"/>
+        <EditText
+            android:id="@+id/frequency_edit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="frequency"
+            android:inputType="number"
+            android:layout_marginBottom="20dp"/>
+
+        <Button
+            android:id="@+id/gen_play"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:text="Play"/>
+        <Button
+            android:id="@+id/set_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:text="Set"/>
+        <Button
+            android:id="@+id/analyzer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:text="Analyzer"/>
+
+    </LinearLayout>
+
+
+
+
+</android.support.constraint.ConstraintLayout>

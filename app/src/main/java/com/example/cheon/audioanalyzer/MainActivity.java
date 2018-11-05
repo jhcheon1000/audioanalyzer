@@ -2,6 +2,7 @@ package com.example.cheon.audioanalyzer;
 
 import android.Manifest;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -32,6 +33,13 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import ca.uol.aig.fftpack.RealDoubleFFT;
 
@@ -43,6 +51,7 @@ public class MainActivity extends AppCompatActivity {
     private int mChannelCount = AudioFormat.CHANNEL_IN_STEREO;
     private int mAudioFormat = AudioFormat.ENCODING_PCM_16BIT;
     private int mBufferSize = AudioTrack.getMinBufferSize(mSampleRate, mChannelCount, mAudioFormat);
+    private int playBufferSize;
 
     private short[] mAudioData;
     private String mDecibelFormat;
@@ -66,10 +75,10 @@ public class MainActivity extends AppCompatActivity {
 //for fftpack
 
     private RealDoubleFFT transformer;
-    int frequency = 8000;
+    int frequency = 44100;
     int channelConfiguration = AudioFormat.CHANNEL_IN_MONO;
 
-    int blockSize = 256;
+    int blockSize = 1024;
 
     RecordAudio recordTask;
 
@@ -142,12 +151,20 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    public void onGenerate(View v) {
+        Intent genIntent = new Intent(
+                getApplicationContext(),
+                FreqGeneratorActivity.class);
+        startActivity(genIntent);
+    }
+
     private class RecordAudio extends AsyncTask<Void, double[], Void> {
         @Override
         protected Void doInBackground(Void... voids) {
             if (isRecording && !isPlaying) {
                 try {
                     int specBufferSize = AudioRecord.getMinBufferSize(frequency, channelConfiguration, mAudioFormat);
+                    playBufferSize = specBufferSize;
                     Log.d("specBufferSize", String.valueOf(specBufferSize));
                     mAudioRecord = new AudioRecord(mAudioSource, frequency, channelConfiguration, mAudioFormat, specBufferSize);
 
@@ -162,7 +179,14 @@ public class MainActivity extends AppCompatActivity {
                         path.mkdirs();
                     }
 
-                    File outFile = new File(mFilePath, "record.pcm");
+
+                    Calendar cal = Calendar.getInstance();
+                    SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd_HHmmSS");
+
+                    String time = dateFormat.format(cal.getTime());
+                    String filename = time + "+44100.pcm";
+
+                    File outFile = new File(mFilePath, filename);
                     FileOutputStream fos = null;
 
                     try {
@@ -173,7 +197,25 @@ public class MainActivity extends AppCompatActivity {
 
                     DataOutputStream dos = new DataOutputStream(fos);
 
+
+//                    boolean timer = false;
                     while (isRecording) {
+//                        if(!timer) {
+//                            new Timer().schedule(new TimerTask() {
+//                                @Override
+//                                public void run() {
+//                                    runOnUiThread(new Runnable() {
+//                                        @Override
+//                                        public void run() {
+//                                            isRecording = false;
+//                                            mBtnRecord.setText("Record");
+//                                        }
+//                                    });
+//                                }
+//                            }, 5000);
+//
+//                            timer = true;
+//                        }
                         int ret = mAudioRecord.read(mAudioData, 0, blockSize);
 
 //                      update waveform and decibel value
@@ -189,21 +231,20 @@ public class MainActivity extends AppCompatActivity {
 
                         Log.d(TAG, "read bytes is " + ret);
 
-//                        put byte array instead of mAudioData (short array)
-//                        try {
-//                            fos.write(mAudioData, 0, mBufferSize);
-//                        } catch (IOException e) {
-//                            e.printStackTrace();
-//                        }
-
                         try {
-                            Log.d("DATA LENGTH", String.valueOf(mAudioData.length));
-                            for (int i = 0; i < mAudioData.length; i++) {
-                                dos.writeShort(mAudioData[i]);
-                            }
+                            byte[] mByteData = short2byte(mAudioData);
+                            fos.write(mByteData, 0, mByteData.length);
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
+
+//                        try {
+//                            for (int i = 0; i < mAudioData.length; i++) {
+//                                dos.writeShort(mAudioData[i]);
+//                            }
+//                        } catch (IOException e) {
+//                            e.printStackTrace();
+//                        }
                     }
 
                     mAudioRecord.stop();
@@ -220,17 +261,31 @@ public class MainActivity extends AppCompatActivity {
                         e.printStackTrace();
                     }
 
+//                    File rawFile = new File(mFilePath, filename);
+//                    File wavFile = new File(mFilePath, filename);
+//                    try {
+//                        rawToWave(rawFile, wavFile);
+//                    } catch (IOException e) {
+//                        e.printStackTrace();
+//                    }
+
                 } catch (Throwable t) {
                     Log.e("AudioRecord", "Recording Failed");
                 }
             }
             else if (!isRecording && isPlaying) {
-                int playBufferSize = AudioTrack.getMinBufferSize(frequency, AudioFormat.CHANNEL_OUT_MONO, mAudioFormat);
 //                short[] writeData = new short[blockSize];
-                byte[] writeData = new byte[blockSize * 2];
+                byte[] writeData = new byte[blockSize*2];
                 Log.d("playBufferSize", String.valueOf(playBufferSize));
                 FileInputStream fis = null;
-                File inFile = new File(mFilePath, "record.pcm");
+
+                Calendar cal = Calendar.getInstance();
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd_HHmmSS");
+
+                String time = dateFormat.format(cal.getTime());
+                String filename = time + "+44100.pcm";
+
+                File inFile = new File(mFilePath, filename);
 
                 try {
                     fis = new FileInputStream(inFile);
@@ -245,7 +300,7 @@ public class MainActivity extends AppCompatActivity {
 
                 while (isPlaying) {
                     try {
-                        int ret = dis.read(writeData, 0, blockSize * 2);
+                        int ret = dis.read(writeData, 0, blockSize*2);
 
 //                        for (int i = 0; i < 256; i++) {
 //                            writeData[i] = dis.readShort();
@@ -323,6 +378,110 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
+    private byte[] short2byte(short[] s) {
+        int shortArrSize = s.length;
+        byte[] b = new byte[shortArrSize * 2];
+
+        for (int i = 0; i < shortArrSize; i++) {
+            b[i * 2] = (byte) (s[i] & 0x00FF);
+
+            b[(i * 2) + 1] = (byte) (s[i] >> 8);
+
+            s[i] = 0;
+        }
+
+        return b;
+    }
+
+    private void rawToWave(final File rawFile, final File waveFile) throws IOException {
+
+        byte[] rawData = new byte[(int) rawFile.length()];
+        DataInputStream input = null;
+        try {
+            input = new DataInputStream(new FileInputStream(rawFile));
+            input.read(rawData);
+        } finally {
+            if (input != null) {
+                input.close();
+            }
+        }
+
+        DataOutputStream output = null;
+        try {
+            output = new DataOutputStream(new FileOutputStream(waveFile));
+            // WAVE header
+            // see http://ccrma.stanford.edu/courses/422/projects/WaveFormat/
+            writeString(output, "RIFF"); // chunk id
+            writeInt(output, 36 + rawData.length); // chunk size
+            writeString(output, "WAVE"); // format
+            writeString(output, "fmt "); // subchunk 1 id
+            writeInt(output, 16); // subchunk 1 size
+            writeShort(output, (short) 1); // audio format (1 = PCM)
+            writeShort(output, (short) 1); // number of channels
+            writeInt(output, 44100); // sample rate
+            writeInt(output, 44100 * 2); // byte rate
+            writeShort(output, (short) 2); // block align
+            writeShort(output, (short) 16); // bits per sample
+            writeString(output, "data"); // subchunk 2 id
+            writeInt(output, rawData.length); // subchunk 2 size
+            // Audio data (conversion big endian -> little endian)
+            short[] shorts = new short[rawData.length / 2];
+            ByteBuffer.wrap(rawData).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(shorts);
+            ByteBuffer bytes = ByteBuffer.allocate(shorts.length * 2);
+            for (short s : shorts) {
+                bytes.putShort(s);
+            }
+
+            output.write(fullyReadFileToBytes(rawFile));
+        } finally {
+            if (output != null) {
+                output.close();
+            }
+        }
+    }
+    byte[] fullyReadFileToBytes(File f) throws IOException {
+        int size = (int) f.length();
+        byte bytes[] = new byte[size];
+        byte tmpBuff[] = new byte[size];
+        FileInputStream fis= new FileInputStream(f);
+        try {
+
+            int read = fis.read(bytes, 0, size);
+            if (read < size) {
+                int remain = size - read;
+                while (remain > 0) {
+                    read = fis.read(tmpBuff, 0, remain);
+                    System.arraycopy(tmpBuff, 0, bytes, size - remain, read);
+                    remain -= read;
+                }
+            }
+        }  catch (IOException e){
+            throw e;
+        } finally {
+            fis.close();
+        }
+
+        return bytes;
+    }
+    private void writeInt(final DataOutputStream output, final int value) throws IOException {
+        output.write(value >> 0);
+        output.write(value >> 8);
+        output.write(value >> 16);
+        output.write(value >> 24);
+    }
+
+    private void writeShort(final DataOutputStream output, final short value) throws IOException {
+        output.write(value >> 0);
+        output.write(value >> 8);
+    }
+
+    private void writeString(final DataOutputStream output, final String value) throws IOException {
+        for (int i = 0; i < value.length(); i++) {
+            output.write(value.charAt(i));
+        }
+    }
+
 
     private void requestRecordAudioPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
