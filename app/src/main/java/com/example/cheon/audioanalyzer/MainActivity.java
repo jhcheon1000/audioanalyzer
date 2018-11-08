@@ -26,22 +26,30 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.BufferedWriter;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Timer;
 import java.util.TimerTask;
 
 import ca.uol.aig.fftpack.RealDoubleFFT;
+
+
 
 public class MainActivity extends AppCompatActivity {
     private String TAG = ".MainActivity";
@@ -56,7 +64,7 @@ public class MainActivity extends AppCompatActivity {
     private short[] mAudioData;
     private String mDecibelFormat;
 
-    private WaveformView mWaveformView;
+//    private WaveformView mWaveformView;
     private TextView mDecibelView;
 
 
@@ -71,14 +79,16 @@ public class MainActivity extends AppCompatActivity {
 
     String mFilePath;
 
+    public Boolean logFlag = false;
+
     //==================================================================================================
 //for fftpack
 
     private RealDoubleFFT transformer;
-    int frequency = 44100;
+    int frequency = 44100; //8000
     int channelConfiguration = AudioFormat.CHANNEL_IN_MONO;
 
-    int blockSize = 1024;
+    int blockSize = 2048; //256
 
     RecordAudio recordTask;
 
@@ -88,6 +98,15 @@ public class MainActivity extends AppCompatActivity {
     Paint paint;
 
 
+    private double detectBit = 18000;
+    private double freqRangePerSample = (double) frequency / (2 * (double) blockSize);
+    private int detectIdx = (int) (detectBit / freqRangePerSample);
+    private int ran = 5;
+    private int[] idxRange= {detectIdx - ran, detectIdx + ran};
+
+    JSONObject freqCount;
+
+
 //==================================================================================================
 
     @Override
@@ -95,10 +114,12 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        Log.d("detectIdx", String.valueOf(detectIdx) + "  " + String.valueOf(freqRangePerSample));
+
 //      for fft (fast fourier transform)
         transformer = new RealDoubleFFT(blockSize);
         imageView = (ImageView) findViewById(R.id.fft_graph);
-        bitmap = Bitmap.createBitmap((int) 256, (int) 100, Bitmap.Config.ARGB_8888);
+        bitmap = Bitmap.createBitmap((int) 2048, (int) 100, Bitmap.Config.ARGB_8888);
         canvas = new Canvas(bitmap);
         paint = new Paint();
         paint.setColor(Color.GREEN);
@@ -109,7 +130,7 @@ public class MainActivity extends AppCompatActivity {
         mBtnRecord = (Button) findViewById(R.id.record_button);
         mBtnPlay = (Button) findViewById(R.id.play_button);
         mDecibelFormat = getResources().getString(R.string.decibel_format);
-        mWaveformView = (WaveformView) findViewById(R.id.waveform_view);
+//        mWaveformView = (WaveformView) findViewById(R.id.waveform_view);
         mDecibelView = (TextView) findViewById(R.id.decibel_view);
 
         requestRecordAudioPermission();
@@ -197,6 +218,15 @@ public class MainActivity extends AppCompatActivity {
 
                     DataOutputStream dos = new DataOutputStream(fos);
 
+                    freqCount = new JSONObject();
+                    for (int i = detectIdx-ran; i <= detectIdx+ran; i++) {
+                        try {
+                            freqCount.put(String.valueOf(i * freqRangePerSample), String.valueOf(0));
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
 
 //                    boolean timer = false;
                     while (isRecording) {
@@ -219,7 +249,7 @@ public class MainActivity extends AppCompatActivity {
                         int ret = mAudioRecord.read(mAudioData, 0, blockSize);
 
 //                      update waveform and decibel value
-                        mWaveformView.updateAudioData(mAudioData);
+//                        mWaveformView.updateAudioData(mAudioData);
                         updateDecibelLevel();
 
                         for (int i = 0; i < blockSize && i < ret; i++) {
@@ -254,6 +284,10 @@ public class MainActivity extends AppCompatActivity {
 
                     recordTask = null;
 
+                    for (int i = detectIdx - ran; i <= detectIdx + ran; i++) {
+                        Log.d("FreqCount", String.valueOf(i*freqRangePerSample) + "Hz : " + freqCount.get(Double.toString(i*freqRangePerSample)));
+                    }
+                    freqCount = null;
                     try {
                         dos.close();
                         fos.close();
@@ -347,11 +381,30 @@ public class MainActivity extends AppCompatActivity {
 
             canvas.drawColor(Color.BLACK);
 
+            if (!logFlag) {
+                appendLog("+++++++++++++++++++++++++++++++++++++++");
+                logFlag = true;
+            }
+
             for (int i = 0; i < toTransform[0].length; i++) {
+
                 int x = i;
                 int downy = (int) (100 - (toTransform[0][i] * 10));
                 int upy = 100;
+                int freqLevel = upy - downy;
+                if ( i >= idxRange[0] && i <= idxRange[1] ) {
+                    if (freqLevel > 10) {
+                        Log.d("Hz", String.valueOf(i*freqRangePerSample) + "Hz, Level : " + String.valueOf(Math.abs(freqLevel)));
+                        try {
+                            int cnt = Integer.parseInt((String) freqCount.get(Double.toString(i*freqRangePerSample)));
+                            freqCount.put(String.valueOf(i*freqRangePerSample), String.valueOf(cnt+1));
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
 
+                    }
+                    appendLog(String.valueOf(i*freqRangePerSample) + " Hz, Level : " + String.valueOf(Math.abs(freqLevel)));
+                }
                 canvas.drawLine(x, downy, x, upy, paint);
             }
 
@@ -370,7 +423,7 @@ public class MainActivity extends AppCompatActivity {
 
         double rms = Math.sqrt(sum / mAudioData.length);
         final double db = 20 * Math.log10(rms);
-
+        Log.d("dB", String.valueOf(db));
         mDecibelView.post(new Runnable() {
             @Override
             public void run() {
@@ -479,6 +532,36 @@ public class MainActivity extends AppCompatActivity {
     private void writeString(final DataOutputStream output, final String value) throws IOException {
         for (int i = 0; i < value.length(); i++) {
             output.write(value.charAt(i));
+        }
+    }
+
+    public void appendLog(String text)
+    {
+        File logFile = new File(mFilePath, "log.txt");
+        if (!logFile.exists())
+        {
+            try
+            {
+                logFile.createNewFile();
+            }
+            catch (IOException e)
+            {
+                // 적절한 예외처리를 해주면됩니다.
+                e.printStackTrace();
+            }
+        }
+        try
+        {
+            //퍼포먼스를 위해 BufferedWriter를 썼고 FileWriter의 true는 파일을 이어쓸 수 있게 하기 위해서 해줬습니다.
+            BufferedWriter buf = new BufferedWriter(new FileWriter(logFile, true));
+            buf.append(text);
+            buf.newLine();
+            buf.close();
+        }
+        catch (IOException e)
+        {
+            // 적절한 예외처리를 해주면됩니다.
+            e.printStackTrace();
         }
     }
 
